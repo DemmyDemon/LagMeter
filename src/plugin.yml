@@ -1,0 +1,23 @@
+name: LagMeter
+main: com.webkonsept.minecraft.lagmeter.LagMeter
+version: 0.1
+branch: stable
+website: http://minecraft.webkonsept.com/plugins/details/LagMeter.jar
+location: http://minecraft.webkonsept.com/plugins/download/LagMeter.jar
+database: false
+description: Lets you check the server lag, in ticks-per-second
+commands:
+    lag: 
+        description: Check current lag
+        usage: /<command> (takes no arguments)
+generators: [bukget]
+categories: [INFO]
+maintainer: DemmyDemon
+authors: [DemmyDemon]
+conflicts: []
+required: []
+optional: []
+engines:
+    craftbukkit:
+        min: 953
+        max: 953
