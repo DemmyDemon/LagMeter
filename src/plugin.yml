@@ -1,15 +1,38 @@
 name: LagMeter
 main: com.webkonsept.minecraft.lagmeter.LagMeter
-version: 0.1
+version: 0.3
 branch: stable
 website: http://minecraft.webkonsept.com/plugins/details/LagMeter.jar
 location: http://minecraft.webkonsept.com/plugins/download/LagMeter.jar
+thread: http://forums.bukkit.org/threads/LagMeter.25889/
 database: false
 description: Lets you check the server lag, in ticks-per-second
 commands:
     lag: 
         description: Check current lag
-        usage: /<command> (takes no arguments)
+        usage: /<command>
+    mem:
+        description: Check current memory usage
+        usage: /<command>
+    lagmem:
+        description: Check both current memory usage and current lag
+        usage: /<command>
+permissions:
+    lagmeter.*:
+        description: Gives full access
+        children:
+            lagmeter.command.lag: true
+            lagmeter.command.mem: true
+            lagmeter.command.lagmem: true
+    lagmeter.command.lag:
+        description: Gives access to the /lag command
+        default: op
+    lagmeter.command.mem:
+        description: Gives access to the /mem command
+        default: op
+    lagmeter.command.lagmem:
+        description: gives access to the combination /lagmem command
+        default: op
 generators: [bukget]
 categories: [INFO]
 maintainer: DemmyDemon
@@ -19,5 +42,5 @@ required: []
 optional: []
 engines:
     craftbukkit:
-        min: 953
-        max: 953
+        min: 1000
+        max: 1000

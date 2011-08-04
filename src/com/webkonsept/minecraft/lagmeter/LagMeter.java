@@ -2,7 +2,6 @@ package com.webkonsept.minecraft.lagmeter;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.logging.Logger;
 
 import org.bukkit.ChatColor;
@@ -19,14 +18,14 @@ import com.nijikokun.bukkit.Permissions.Permissions;
 
 public class LagMeter extends JavaPlugin {
 	private Logger log = Logger.getLogger("Minecraft");
-	private PermissionHandler Permissions;
-	private boolean usePermissions;
-	private HashMap<String,Boolean> fallbackPermissions = new HashMap<String,Boolean>();
 	protected float ticksPerSecond = 20;
 	
 	private LagMeterPoller poller = new LagMeterPoller(this);
 	protected int averageLength = 10;
 	protected LagMeterStack history = new LagMeterStack();
+	
+	protected boolean crapPermissions = false;
+	protected PermissionHandler pHandler;
 	
 	//Configurable
 	protected int interval = 40;
@@ -42,34 +41,105 @@ public class LagMeter extends JavaPlugin {
 	public void onEnable() {
 		loadConfig();
 		history.setMaxSize(averageLength);
-		if(!setupPermissions()){
-			fallbackPermissions.put("lagmeter.command",true);
-		}
 		getServer().getScheduler().scheduleSyncRepeatingTask(this,poller,0,interval);
+		if(checkCrapPermissions()){
+			this.crap(ChatColor.RED+"Inferior Permissions system detected.  Using it :(");
+			crapPermissions = true;
+		}
 		this.out("Enabled!  Polling every "+interval+" server ticks.");
 	}
-	
+	protected boolean permit(Player player,String permission){
+		boolean permit = false;
+		if (crapPermissions){
+			permit = pHandler.permission(player, permission);
+		}
+		else {
+			permit = player.hasPermission(permission);
+		}
+		return permit;
+	}
+	private boolean checkCrapPermissions() {
+		boolean crap = false;
+		
+		Plugin test = this.getServer().getPluginManager().getPlugin("Permissions");
+		if (test != null){
+			crap = true;
+			this.pHandler = ((Permissions)test).getHandler();
+		}
+		
+		return crap;
+	}
 	public boolean onCommand(CommandSender sender, Command command, String commandLabel, String[] args) {
 		
 		if ( ! this.isEnabled() ) return false;
 		boolean success = false;
-		if (command.getName().equalsIgnoreCase("lag")){
-			success = true;
-			if (sender instanceof Player){
-				if (permit((Player)sender,"lagmeter.command")){
-					sendLagMeter(sender);
-				}
-				else {
-					sender.sendMessage(ChatColor.GOLD+"Sorry, permission was denied.");
-				}
-			}
-			else {
+		if (
+				(sender instanceof Player && this.permit((Player)sender, "lagmeter.command."+command.getName().toLowerCase()))
+				|| !(sender instanceof Player)
+				// That is, if it's a player with permission, or not a player at all (console?), then...
+		){
+			if (command.getName().equalsIgnoreCase("lag")){
+				success = true;
 				sendLagMeter(sender);
 			}
+			else if (command.getName().equalsIgnoreCase("mem")){
+				success = true; 			
+				sendMemMeter(sender);
+			}
+			else if (command.getName().equalsIgnoreCase("lagmem")){
+				success = true;
+				sendLagMeter(sender);
+				sendMemMeter(sender);
+			}
 		}
+		else {
+			success = true;  // Not really a success, but a valid command at least.
+			sender.sendMessage(ChatColor.GOLD+"Sorry, permission lagmeter.command."+command.getName().toLowerCase()+" was denied.");
+		}
+		
 		return success;
 	}
+	protected void sendMemMeter(CommandSender sender){
+		ChatColor wrapColor = ChatColor.WHITE;
+		if (sender instanceof Player){
+			wrapColor = ChatColor.GOLD;
+		}
+		double memUsed = ( Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory() ) / 1048576;
+		double memMax = Runtime.getRuntime().maxMemory() / 1048576;
+		double memFree = memMax - memUsed;
+		double percentageFree = ( 100 / memMax) * memFree;
+		
+		ChatColor color = ChatColor.GOLD;
+		if (percentageFree >= 60){
+			color = ChatColor.GREEN;
+		}
+		else if (percentageFree >= 35){
+			color = ChatColor.YELLOW;
+		}
+		else {
+			color = ChatColor.RED;
+		}
+		
+		String bar = "";
+		int looped = 0;
+		
+		while (looped++ < (percentageFree/5) ){
+			bar += '#';
+		}
+		//bar = String.format("%-20s",bar);
+		bar += ChatColor.WHITE;
+		while (looped++ <= 20){
+			bar += '_';
+		}
+		sender.sendMessage(wrapColor+"["+color+bar+wrapColor+"] "+memFree+"MB/"+memMax+"MB ("+(int)percentageFree+"%) free");
+	}
 	protected void sendLagMeter(CommandSender sender){
+		
+		ChatColor wrapColor = ChatColor.WHITE;
+		if (sender instanceof Player){
+			wrapColor = ChatColor.GOLD;
+		}
+		
 		String lagMeter = "";
 		float tps = 0f;
 		if (useAverage){
@@ -83,13 +153,17 @@ public class LagMeter extends JavaPlugin {
 			while (looped++ < tps){
 				lagMeter += "#";
 			}
-			lagMeter = String.format("%-20s",lagMeter); 
+			//lagMeter = String.format("%-20s",lagMeter);
+			lagMeter += ChatColor.WHITE;
+			while (looped++ <= 20){
+				lagMeter += "_";
+			}
 		}
 		else {
-			sender.sendMessage(ChatColor.GOLD+"LagMeter just loaded, please wait for polling.");
+			sender.sendMessage(wrapColor+"LagMeter just loaded, please wait for polling.");
 			return;
 		}
-		ChatColor color = ChatColor.GOLD;
+		ChatColor color = wrapColor;
 		if (tps >= 20){
 			color = ChatColor.GREEN;
 		}
@@ -102,41 +176,7 @@ public class LagMeter extends JavaPlugin {
 		else {
 			color = ChatColor.RED;
 		}
-		sender.sendMessage(ChatColor.GOLD+"["+color+lagMeter+ChatColor.GOLD+"] "+tps+" TPS");
-	}
-	public boolean permit(Player player,String permission){ 
-		
-		boolean allow = false; // Default to GTFO
-		if ( usePermissions ){
-			allow = Permissions.has(player,permission);
-		}
-		else if (player.isOp()){
-			allow = true;
-		}
-		else {
-			if (fallbackPermissions.get(permission) || false){
-				allow = true;
-			}
-		}
-		return allow;
-	}
-	private boolean setupPermissions() {
-		Plugin test = this.getServer().getPluginManager().getPlugin("Permissions");
-		if (this.Permissions == null){
-			if (test != null){
-				this.Permissions = ((Permissions)test).getHandler();
-				this.usePermissions = true;
-				return true;
-			}
-			else {
-				this.out("Permissions plugin not found, defaulting to OPS CHECK mode");
-				return false;
-			}
-		}
-		else {
-			this.out("Urr, this is odd...  Permissions are already set up!");
-			return true;
-		}
+		sender.sendMessage(wrapColor+"["+color+lagMeter+wrapColor+"] "+tps+" TPS");
 	}
 	public void out(String message) {
 		PluginDescriptionFile pdfFile = this.getDescription();
