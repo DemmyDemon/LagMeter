@@ -20,33 +20,52 @@ public class LagMeter extends JavaPlugin {
 	private Logger log = Logger.getLogger("Minecraft");
 	protected float ticksPerSecond = 20;
 	
-	private LagMeterPoller poller = new LagMeterPoller(this);
+	protected LagMeterLogger logger = new LagMeterLogger(this);
+	protected LagMeterPoller poller = new LagMeterPoller(this);
 	protected int averageLength = 10;
 	protected LagMeterStack history = new LagMeterStack();
 	
 	protected boolean crapPermissions = false;
 	protected PermissionHandler pHandler;
 	
+	double memUsed = ( Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory() ) / 1048576;
+	double memMax = Runtime.getRuntime().maxMemory() / 1048576;
+	double memFree = memMax - memUsed;
+	double percentageFree = ( 100 / memMax) * memFree;
+	
 	//Configurable
 	protected int interval = 40;
 	protected boolean useAverage = true;
+	protected boolean enableLogging = true;
+	protected int logInterval = 150;
 	
 	@Override
 	public void onDisable() {
 		this.out("Disabled!");
 		getServer().getScheduler().cancelTasks(this);
+		logger.disable();
 	}
 
 	@Override
 	public void onEnable() {
 		loadConfig();
+		if (enableLogging){
+			if (!logger.enable()){
+				this.crap("Logging is disabled because: "+logger.getError());
+				poller.setLogInterval(logInterval);
+			}
+		}
 		history.setMaxSize(averageLength);
 		getServer().getScheduler().scheduleSyncRepeatingTask(this,poller,0,interval);
 		if(checkCrapPermissions()){
-			this.crap(ChatColor.RED+"Inferior Permissions system detected.  Using it :(");
+			this.crap("Old permissions system detected.  Using it.");
 			crapPermissions = true;
 		}
-		this.out("Enabled!  Polling every "+interval+" server ticks.");
+		String loggingMessage = "";
+		if (enableLogging){
+			loggingMessage = "  Logging to "+logger.getFilename();
+		}
+		this.out("Enabled!  Polling every "+interval+" server ticks."+loggingMessage);
 	}
 	protected boolean permit(Player player,String permission){
 		boolean permit = false;
@@ -99,15 +118,18 @@ public class LagMeter extends JavaPlugin {
 		
 		return success;
 	}
+	protected void updateMemoryStats (){
+		memUsed = ( Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory() ) / 1048576;
+		memMax = Runtime.getRuntime().maxMemory() / 1048576;
+		memFree = memMax - memUsed;
+		percentageFree = ( 100 / memMax) * memFree;
+	}
 	protected void sendMemMeter(CommandSender sender){
+		updateMemoryStats();
 		ChatColor wrapColor = ChatColor.WHITE;
 		if (sender instanceof Player){
 			wrapColor = ChatColor.GOLD;
 		}
-		double memUsed = ( Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory() ) / 1048576;
-		double memMax = Runtime.getRuntime().maxMemory() / 1048576;
-		double memFree = memMax - memUsed;
-		double percentageFree = ( 100 / memMax) * memFree;
 		
 		ChatColor color = ChatColor.GOLD;
 		if (percentageFree >= 60){
@@ -194,9 +216,11 @@ public class LagMeter extends JavaPlugin {
 		config.load();
 		
 		// Loading
-		interval = config.getInt("interval",interval);
-		useAverage = config.getBoolean("useAverage",useAverage);
-		averageLength = config.getInt("averageLength",averageLength);
+		interval 		= config.getInt		("interval",		interval);
+		useAverage 		= config.getBoolean	("useAverage",		useAverage);
+		averageLength 	= config.getInt		("averageLength",	averageLength);
+		enableLogging 	= config.getBoolean	("log.enable",		enableLogging);
+		logInterval		= config.getInt		("log.interval",	logInterval);
 		
 		// Sanity check
 		if (interval < 20){
@@ -215,7 +239,7 @@ public class LagMeter extends JavaPlugin {
 				e.printStackTrace();
 				this.crap("IOError while creating config file: "+e.getMessage());
 			}
-			config.save();
 		}
+		config.save();  // Saving regardless, because I want new settings to be written to it after updating etc.
 	}
 }
