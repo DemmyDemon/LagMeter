@@ -15,6 +15,7 @@ import org.bukkit.util.config.Configuration;
 
 import com.nijiko.permissions.PermissionHandler;
 import com.nijikokun.bukkit.Permissions.Permissions;
+import com.ramblingwood.minecraft.jsonapi.JSONAPI;
 
 public class LagMeter extends JavaPlugin {
 	private Logger log = Logger.getLogger("Minecraft");
@@ -65,8 +66,32 @@ public class LagMeter extends JavaPlugin {
 		if (enableLogging){
 			loggingMessage = "  Logging to "+logger.getFilename();
 		}
+		loadJsonApi(3);
 		this.out("Enabled!  Polling every "+interval+" server ticks."+loggingMessage);
 	}
+	
+	/**
+	 * I got some class-not-found-errors, presumably because LagMeter was loaded before
+	 * JSONAPI, so let's retry before we give up 
+	 */
+	private void loadJsonApi(final int retries) {
+		Plugin checkplugin = this.getServer().getPluginManager().getPlugin("JSONAPI");
+		if(checkplugin != null) {
+			poller.enableJsonApi(new JsonApiStream((JSONAPI)checkplugin), 5);
+			this.out("Streaming to JSONAPI!");
+		} else if (retries > 0){
+			getServer().getScheduler().scheduleSyncDelayedTask(this, new Runnable() {
+				public void run() {
+					final int nextRetries = retries - 1;
+					loadJsonApi(nextRetries);
+				}
+			}, 20 * 10);
+		} else {
+			this.out("Could not connect to JSONAPI plugin!");
+		}
+		
+	}
+
 	protected boolean permit(Player player,String permission){
 		boolean permit = false;
 		if (crapPermissions){

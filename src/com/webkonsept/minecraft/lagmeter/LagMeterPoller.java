@@ -5,6 +5,9 @@ public class LagMeterPoller implements Runnable {
 	long polls = 0; // Haha, a Long here is optimism for sure!
 	int logInterval = 150;
 	LagMeter plugin;
+	private JsonApiStream stream;
+	private int streamFrequency;
+	private int streamIndex = 0;
 	
 	LagMeterPoller (LagMeter instance){
 		plugin = instance;
@@ -37,6 +40,21 @@ public class LagMeterPoller implements Runnable {
 			plugin.logger.log("TPS: "+aTPS+"  Memory free: "+plugin.memFree+"/"+plugin.memMax);
 		}
 		
+		if (stream != null) {
+			if (streamIndex <= 0) {
+				stream.addMessage(tps, plugin.memMax, plugin.memMax - plugin.memFree);
+				streamIndex = streamFrequency;
+			} else {
+				streamIndex--;
+			}
+		}
+	}
+	/**
+	 * Frequency of broadcasting will be pollInterval * frequency.
+	 */
+	public void enableJsonApi(JsonApiStream jsonApiStream, int frequency) {
+		streamFrequency = frequency;
+		stream = jsonApiStream;
 	}
 
 }
